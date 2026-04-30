@@ -3,27 +3,49 @@ import time
 try:
     import keyboard
 except ImportError:
-    # 提供一个模拟的keyboard实现，用于测试
+    # Provide a mock keyboard implementation for testing
     class MockKeyboard:
-        def is_pressed(self, key):
-            # 模拟键盘输入，默认不按键
+        def is_pressed(self, key: str) -> bool:
             return False
-    
+
     keyboard = MockKeyboard()
 
 from agents.agent import Agent
 
+# Default speed constants
+DEFAULT_SPEED = 5
+DEFAULT_TURN_SPEED = 2
+DEFAULT_HEIGHT_ADJUST_SPEED = 3
+
+# Control key mappings
+KEY_FORWARD = 'w'
+KEY_BACKWARD = 's'
+KEY_LEFT = 'a'
+KEY_RIGHT = 'd'
+KEY_UP = 'q'
+KEY_DOWN = 'e'
+KEY_STOP = 'space'
+KEY_EXIT = 'esc'
+
 
 class KeyboardController(Agent):
-    def __init__(self, client, move_type):
+    """Keyboard-controlled drone agent.
+
+    Args:
+        client: AirSim client instance.
+        move_type: Movement type for the drone.
+    """
+
+    def __init__(self, client, move_type: str) -> None:
         super(KeyboardController, self).__init__(client, move_type)
         self.client.start()
-        self.speed = 5  # 移动速度
-        self.turn_speed = 2  # 转向速度
-        self.height_adjust_speed = 3  # 高度调整速度
+        self.speed = DEFAULT_SPEED
+        self.turn_speed = DEFAULT_TURN_SPEED
+        self.height_adjust_speed = DEFAULT_HEIGHT_ADJUST_SPEED
         self.print_controls()
 
-    def print_controls(self):
+    def print_controls(self) -> None:
+        """Print keyboard control instructions."""
         print("\n控制说明:")
         print("键盘控制:")
         print("W: 向前移动")
@@ -35,7 +57,12 @@ class KeyboardController(Agent):
         print("空格键: 停止移动")
         print("ESC: 退出控制\n")
 
-    def get_state(self):
+    def get_state(self) -> dict:
+        """Get current drone state.
+
+        Returns:
+            Dictionary with position and velocity information.
+        """
         state = self.client.get_state()
         position = state.kinematics_estimated.position
         return {
@@ -43,43 +70,60 @@ class KeyboardController(Agent):
             'velocity': state.kinematics_estimated.linear_velocity
         }
 
-    def handle_keyboard_input(self):
-        vx, vy, vz = 0, 0, 0
+    def handle_keyboard_input(self) -> tuple[float, float, float]:
+        """Process keyboard input and return velocity components.
 
-        # 处理键盘输入
-        if keyboard.is_pressed('w'):
+        Returns:
+            Tuple of (vx, vy, vz) velocity components.
+        """
+        vx, vy, vz = 0.0, 0.0, 0.0
+
+        # Forward/backward movement
+        if keyboard.is_pressed(KEY_FORWARD):
             vx = self.speed
-        elif keyboard.is_pressed('s'):
+        elif keyboard.is_pressed(KEY_BACKWARD):
             vx = -self.speed
 
-        if keyboard.is_pressed('a'):
+        # Left/right turning
+        if keyboard.is_pressed(KEY_LEFT):
             vy = -self.turn_speed
-        elif keyboard.is_pressed('d'):
+        elif keyboard.is_pressed(KEY_RIGHT):
             vy = self.turn_speed
 
-        if keyboard.is_pressed('q'):
+        # Up/down movement
+        if keyboard.is_pressed(KEY_UP):
             vz = self.height_adjust_speed
-        elif keyboard.is_pressed('e'):
+        elif keyboard.is_pressed(KEY_DOWN):
             vz = -self.height_adjust_speed
 
-        # 空格键停止移动
-        if keyboard.is_pressed('space'):
-            vx, vy, vz = 0, 0, 0
+        # Stop movement
+        if keyboard.is_pressed(KEY_STOP):
+            vx, vy, vz = 0.0, 0.0, 0.0
 
         return vx, vy, vz
 
-    def act(self):
+    def act(self) -> bool:
+        """Execute one control step.
+
+        Returns:
+            True to continue, False to exit.
+        """
         vx, vy, vz = self.handle_keyboard_input()
         self.client.move(self.move_type, vx, vy, vz)
 
-        # 检查是否按下ESC键退出
-        if keyboard.is_pressed('esc'):
+        # Check for exit key
+        if keyboard.is_pressed(KEY_EXIT):
             print("退出控制")
             return False
-        
+
         return True
 
-    def run(self, loop_cnt=100):
+    def run(self, loop_cnt: int = 100) -> None:
+        """Run the keyboard control loop.
+
+        Args:
+            loop_cnt: Maximum number of iterations.
+        """
         for _ in range(loop_cnt):
             if not self.act():
                 break
